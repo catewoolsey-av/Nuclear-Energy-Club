@@ -14,7 +14,6 @@ const AdminContent = ({ content, onRefresh }) => {
     title: '',
     description: '',
     type: 'article',
-    category: 'VC Fundamentals',
     url: '',
     file_name: '',
     duration: '',
@@ -23,7 +22,6 @@ const AdminContent = ({ content, onRefresh }) => {
   });
 
   const typeOptions = ['video', 'article', 'template', 'guide', 'podcast', 'slides', 'pdf', 'link', 'powerpoint'];
-  const categoryOptions = ['VC Fundamentals', 'Deal Analysis', 'Due Diligence', 'Portfolio Management', 'Term Sheets', 'Founder Relations', 'Market Analysis', 'Best Practices', 'Resources', 'Other'];
 
   // File type to content type mapping
   const fileTypeMap = {
@@ -107,7 +105,6 @@ const AdminContent = ({ content, onRefresh }) => {
       title: '',
       description: '',
       type: 'article',
-      category: 'VC Fundamentals',
       url: '',
       file_name: '',
       duration: '',
@@ -124,7 +121,6 @@ const AdminContent = ({ content, onRefresh }) => {
       title: item.title || '',
       description: item.description || '',
       type: item.type || 'article',
-      category: item.category || 'VC Fundamentals',
       url: item.url || '',
       file_name: item.file_name || '',
       duration: item.duration || '',
@@ -247,7 +243,6 @@ const AdminContent = ({ content, onRefresh }) => {
                 <th className="text-left px-3 py-3 text-xs font-medium text-gray-500 uppercase w-10">Order</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Content</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Type</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Category</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Featured</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -255,7 +250,7 @@ const AdminContent = ({ content, onRefresh }) => {
             <tbody className="divide-y divide-gray-200">
               {content.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     No content yet. Click "Add Content" to create one.
                   </td>
                 </tr>
@@ -293,7 +288,6 @@ const AdminContent = ({ content, onRefresh }) => {
                         {item.type || '-'}
                       </span>
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-600">{item.category || '-'}</td>
                     <td className="px-4 py-4 text-center">
                       <button
                         onClick={() => handleToggleFeatured(item)}
@@ -417,31 +411,17 @@ const AdminContent = ({ content, onRefresh }) => {
                     placeholder="Brief description of the content..."
                   />
                 </div>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                    <select
-                      value={formData.type}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      {typeOptions.map(t => (
-                        <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                    <select
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      {categoryOptions.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    {typeOptions.map(t => (
+                      <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
