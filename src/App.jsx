@@ -227,6 +227,69 @@ export default function App() {
     if (!silent) setLoading(false);
   };
   
+  // LinkedIn connect prompt — show once after login for members without LinkedIn
+  const [showLinkedinPrompt, setShowLinkedinPrompt] = useState(false);
+
+  useEffect(() => {
+    if (!loggedInMember || loggedInMember.linkedin_connected) return;
+    if (loggedInMember.photo_url) return;
+    if (currentView !== 'dashboard') return;
+    if (linkedinStatus) return;
+
+    try {
+      const permaDismissed = localStorage.getItem('ngvc_linkedin_prompt_never');
+      if (permaDismissed) return;
+
+      const skipped = localStorage.getItem('ngvc_linkedin_prompt_skipped');
+      if (skipped) {
+        const skippedAt = parseInt(skipped, 10);
+        const sevenDays = 7 * 24 * 60 * 60 * 1000;
+        if (Date.now() - skippedAt < sevenDays) return;
+      }
+    } catch {}
+
+    const timer = setTimeout(() => setShowLinkedinPrompt(true), 2000);
+    return () => clearTimeout(timer);
+  }, [loggedInMember, currentView]);
+
+  const skipLinkedinPrompt = () => {
+    setShowLinkedinPrompt(false);
+    try {
+      localStorage.setItem('ngvc_linkedin_prompt_skipped', String(Date.now()));
+    } catch {}
+  };
+
+  const dismissLinkedinPromptForever = () => {
+    setShowLinkedinPrompt(false);
+    try {
+      localStorage.setItem('ngvc_linkedin_prompt_never', 'true');
+    } catch {}
+  };
+
+  // Handle LinkedIn OAuth redirect
+  const [linkedinStatus, setLinkedinStatus] = useState(null);
+  const [linkedinErrorDetail, setLinkedinErrorDetail] = useState(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const linkedinParam = params.get('linkedin');
+    if (linkedinParam) {
+      setLinkedinStatus(linkedinParam);
+      if (linkedinParam === 'error') {
+        setLinkedinErrorDetail(`${params.get('reason') || 'unknown'}${params.get('detail') ? ': ' + params.get('detail') : ''}`);
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+      if (linkedinParam === 'connected') {
+        fetchData({ silent: true });
+        setCurrentView('profile');
+        setShowLinkedinPrompt(false);
+      }
+      if (linkedinParam === 'connected') {
+        setTimeout(() => setLinkedinStatus(null), 5000);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     fetchData();
     checkExistingSessions();
@@ -553,11 +616,31 @@ export default function App() {
       />
       
       <main className="lg:ml-64">
-        <Header 
-          title={viewTitles[currentView] || 'Dashboard'} 
+        <Header
+          title={viewTitles[currentView] || 'Dashboard'}
           subtitle={isAdmin ? 'Admin Mode' : 'Member Mode'}
           setIsOpen={setSidebarOpen}
         />
+
+        {linkedinStatus && (
+          <div className={`mx-4 lg:mx-8 mt-4 px-4 py-3 rounded-lg flex items-center justify-between ${
+            linkedinStatus === 'connected'
+              ? 'bg-green-50 border border-green-200 text-green-800'
+              : 'bg-red-50 border border-red-200 text-red-800'
+          }`}>
+            <span className="text-sm font-medium">
+              {linkedinStatus === 'connected'
+                ? 'LinkedIn connected successfully! Your photo and profile have been updated.'
+                : linkedinStatus === 'denied'
+                  ? 'LinkedIn connection was cancelled.'
+                  : `Something went wrong connecting LinkedIn. ${linkedinErrorDetail || 'Please try again.'}`}
+            </span>
+            <button onClick={() => setLinkedinStatus(null)} className="ml-4 text-gray-500 hover:text-gray-700">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
         <div className="p-4 lg:p-8">
           {renderView()}
         </div>
@@ -569,6 +652,35 @@ export default function App() {
           </p>
         </footer>
       </main>
+
+      {showLinkedinPrompt && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="h-1.5" style={{ backgroundColor: 'var(--accent-color, #C9A227)' }} />
+            <div className="p-6 text-center">
+              <div className="w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--primary-color, #1B4D5C) 15%, white)' }}>
+                {loggedInMember?.photo_url ? (
+                  <img src={loggedInMember.photo_url} alt="" className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  <User size={36} className="text-gray-300" />
+                )}
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {loggedInMember?.photo_url ? 'Connect your LinkedIn' : 'Add your photo'}
+              </h3>
+              <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+                Other club members see your profile during meetings. One click imports your photo and name from LinkedIn.
+              </p>
+              <a href={`/api/linkedin-auth?member_id=${loggedInMember?.id}`} className="mt-5 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-white font-medium text-sm transition-opacity hover:opacity-90" style={{ backgroundColor: '#0A66C2' }}>
+                <Linkedin size={18} />
+                Connect LinkedIn
+              </a>
+              <button onClick={skipLinkedinPrompt} className="mt-3 w-full text-sm text-gray-500 hover:text-gray-700 py-2">I'll do it myself</button>
+              <button onClick={dismissLinkedinPromptForever} className="w-full text-xs text-gray-300 hover:text-gray-400 py-1">Skip, and don't see again</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

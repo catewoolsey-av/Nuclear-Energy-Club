@@ -353,12 +353,26 @@ const MemberProfile = ({ currentUser, isAdmin = false, onRefresh, onUserUpdate }
         <div className="space-y-6">
           <Card>
             <h3 className="font-semibold text-gray-900 mb-4">Connect</h3>
-            
+
             <div className="space-y-2">
+              {currentUser.linkedin_connected ? (
+                <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+                  <Linkedin size={18} className="text-green-600" />
+                  <span className="text-sm font-medium text-green-700">LinkedIn Connected</span>
+                  <CheckCircle size={14} className="text-green-500 ml-auto" />
+                </div>
+              ) : (
+                <a href={`/api/linkedin-auth?member_id=${currentUser.id}`} className="flex items-center gap-3 p-3 bg-sky-50 rounded-lg hover:bg-sky-100 transition-colors">
+                  <Linkedin size={18} className="text-sky-600" />
+                  <span className="text-sm font-medium text-sky-700">Connect LinkedIn</span>
+                  <span className="text-xs text-sky-500 ml-auto">Import photo & name</span>
+                </a>
+              )}
+
               {currentUser.linkedin_url && (
                 <a href={currentUser.linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-sky-50 rounded-lg hover:bg-sky-100 transition-colors">
                   <Linkedin size={18} className="text-sky-600" />
-                  <span className="text-sm font-medium text-sky-700">LinkedIn</span>
+                  <span className="text-sm font-medium text-sky-700">LinkedIn Profile</span>
                 </a>
               )}
               
