@@ -991,24 +991,6 @@ View deal: ${window.location.origin}/deals
         size="xl"
       >
         <div className="w-full h-[80vh] relative overflow-hidden rounded-lg">
-          {/* Gray overlay to hide download and print buttons - matches toolbar */}
-          <div 
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              width: '70%',
-              maxWidth: '220px',
-              minWidth: '96px',
-              height: '56px',
-              maxHeight: '64px',
-              minHeight: '44px',
-              backgroundColor: '#3C3C3C',
-              borderTopRightRadius: '12px',
-              zIndex: 1000,
-              pointerEvents: 'auto'
-            }}
-          />
           <iframe
             src={documentUrl}
             className="w-full h-full border-0 rounded-lg"
