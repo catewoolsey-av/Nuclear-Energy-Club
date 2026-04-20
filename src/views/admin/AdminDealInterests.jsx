@@ -11,6 +11,7 @@ const AdminDealInterests = ({ onRefresh }) => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [memberFilter, setMemberFilter] = useState('all');
+  const [viewMode, setViewMode] = useState('active');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
@@ -262,6 +263,56 @@ const AdminDealInterests = ({ onRefresh }) => {
     return type;
   };
 
+  const isInterestArchived = (interest) => Boolean(interest?.archived || interest?.is_archived);
+
+  const setInterestArchived = async (interestId, archived) => {
+    const timestamp = new Date().toISOString();
+
+    try {
+      let updateError = null;
+
+      const archivedResult = await supabase
+        .from('deal_interests')
+        .update({
+          archived,
+          updated_at: timestamp
+        })
+        .eq('id', interestId);
+
+      updateError = archivedResult.error;
+
+      if (updateError && /column .*archived/i.test(updateError.message || '')) {
+        const isArchivedResult = await supabase
+          .from('deal_interests')
+          .update({
+            is_archived: archived,
+            updated_at: timestamp
+          })
+          .eq('id', interestId);
+
+        updateError = isArchivedResult.error;
+      }
+
+      if (updateError) throw updateError;
+
+      setInterests(prev => prev.map((interest) => (
+        interest.id === interestId
+          ? {
+              ...interest,
+              archived,
+              is_archived: archived,
+              updated_at: timestamp
+            }
+          : interest
+      )));
+
+      showToastMessage(archived ? 'Interest archived' : 'Interest restored');
+    } catch (err) {
+      console.error('Error updating archive status:', err);
+      showToastMessage(`Error: ${err.message}`, 'error');
+    }
+  };
+
   const getTypeBadge = (type) => {
     const normalized = normalizeType(type);
     if (normalized === 'invest') {
@@ -327,6 +378,8 @@ const AdminDealInterests = ({ onRefresh }) => {
 
   // Filter interests
   const filteredInterests = interests.filter(interest => {
+    if (viewMode === 'active' && isInterestArchived(interest)) return false;
+    if (viewMode === 'archived' && !isInterestArchived(interest)) return false;
     if (statusFilter !== 'all' && interest.status !== statusFilter) return false;
     if (typeFilter !== 'all') {
       const normalized = normalizeType(interest.interest_type);
@@ -343,6 +396,8 @@ const AdminDealInterests = ({ onRefresh }) => {
   const completedCount = interests.filter(i => i.status === 'completed').length;
   const passCount = interests.filter(i => normalizeType(i.interest_type) === 'pass').length;
   const investCount = interests.filter(i => normalizeType(i.interest_type) === 'invest').length;
+  const archivedCount = interests.filter(isInterestArchived).length;
+  const activeCount = interests.length - archivedCount;
 
   // Get unique members for filter
   const uniqueMembers = Array.from(
@@ -442,7 +497,7 @@ const AdminDealInterests = ({ onRefresh }) => {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
         <div>
           <label className="text-sm text-gray-600 block mb-1">Status</label>
           <select
@@ -482,6 +537,16 @@ const AdminDealInterests = ({ onRefresh }) => {
             ))}
           </select>
         </div>
+        <div>
+          <Button
+            type="button"
+            onClick={() => setViewMode(viewMode === 'active' ? 'archived' : 'active')}
+            className="w-full md:mt-0"
+            variant={viewMode === 'archived' ? 'primary' : 'outline'}
+          >
+            {viewMode === 'archived' ? `Active (${activeCount})` : `Archived (${archivedCount})`}
+          </Button>
+        </div>
       </div>
 
       {/* Interests List */}
@@ -490,7 +555,9 @@ const AdminDealInterests = ({ onRefresh }) => {
           <p className="text-center text-gray-500 py-8">
             {interests.length === 0 
               ? 'No member interests yet. They will appear here when members express interest in deals.'
-              : 'No interests match the current filters.'}
+              : viewMode === 'archived'
+                ? 'No archived interests match the current filters.'
+                : 'No interests match the current filters.'}
           </p>
         </Card>
       ) : (
@@ -626,6 +693,13 @@ const AdminDealInterests = ({ onRefresh }) => {
                     >
                       <Trash2 className="w-4 h-4 mr-1" />
                       Delete
+                    </Button>
+                    <Button
+                      size="xs"
+                      onClick={() => setInterestArchived(interest.id, !isInterestArchived(interest))}
+                      className="w-full text-sm mt-2 bg-gray-600 hover:bg-gray-700"
+                    >
+                      {isInterestArchived(interest) ? 'Unarchive' : 'Archive'}
                     </Button>
                   </div>
                 </div>

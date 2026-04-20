@@ -59,10 +59,11 @@ export const getTimeUntil = (dateString) => {
   const date = parseDateValue(dateString);
   if (!date || Number.isNaN(date.getTime())) return '';
 
-  const targetDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diff = targetDay - today;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const targetDate = new Date(date);
+  targetDate.setHours(0, 0, 0, 0);
+  const diff = targetDate - today;
   const days = Math.round(diff / (1000 * 60 * 60 * 24));
 
   if (days < 0) return 'Past';
