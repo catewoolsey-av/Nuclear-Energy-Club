@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit, Trash2, Clock, MapPin, Users, Video, ExternalLink, Calendar, TrendingUp, BookOpen, ClipboardList } from 'lucide-react';
+import { Plus, Edit, Trash2, Clock, MapPin, Users, Video, ExternalLink, Calendar, TrendingUp, BookOpen, ClipboardList, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../supabase';
 import { formatDate, formatTime } from '../../utils/formatters';
 import { Button, Card, Badge, Modal } from '../../components/ui';
@@ -746,16 +746,21 @@ const AdminSessions = ({ sessions, deals, members = [], onRefresh }) => {
         title="Before you continue"
         size="md"
       >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-700 leading-relaxed">
-            <span className="font-semibold">WARNING:</span> Un-check{' '}
-            <span className="font-medium">"Guests can see guest list"</span> before saving the
-            Google invite, or the RSVP list will be public.
-          </p>
+        <div className="space-y-5">
+          <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 border-2 border-red-300">
+            <AlertTriangle className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-base text-gray-800 leading-relaxed">
+              <span className="font-bold text-red-700 uppercase tracking-wide">Warning:</span>{' '}
+              Un-check <span className="font-semibold">"Guests can see guest list"</span> before
+              saving the Google invite, or the RSVP list will be public.
+            </p>
+          </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button variant="outline" onClick={cancelCreateGoogleCalendar}>Cancel</Button>
-            <Button onClick={confirmCreateGoogleCalendar}>Continue</Button>
+            <Button variant="outline" size="lg" onClick={cancelCreateGoogleCalendar}>Cancel</Button>
+            <Button variant="danger" size="lg" onClick={confirmCreateGoogleCalendar}>
+              I understand — open Google Calendar
+            </Button>
           </div>
         </div>
       </Modal>
