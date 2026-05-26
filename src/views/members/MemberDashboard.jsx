@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, TrendingUp, Bell, ChevronRight, Users, Clock, DollarSign, ExternalLink } from 'lucide-react';
-import { formatDate, formatTime, getTimeUntil, parseDateValue } from '../../utils/formatters';
+import { formatDate, formatTime, getTimeUntil } from '../../utils/formatters';
 import { Button, Card, Badge, Avatar, Modal } from '../../components/ui';
+import { callDealRoomMember } from '../../supabase';
+import { resolveStorageUrl } from '../../utils/storageUrl';
 
 const MemberDashboard = ({ members, sessions, deals, announcements, avTeam, content, onNavigate, onViewMember, currentUser, onRefresh, siteSettings }) => {
   // Filter and sort upcoming sessions by date, get the most upcoming one
@@ -10,19 +12,40 @@ const MemberDashboard = ({ members, sessions, deals, announcements, avTeam, cont
   const upcomingSessions = sessions
     .filter(s => {
       if (!s.date) return false;
-      const sessionDate = parseDateValue(s.date);
-      if (!sessionDate || Number.isNaN(sessionDate.getTime())) return false;
+      const sessionDate = new Date(s.date);
       sessionDate.setHours(0, 0, 0, 0);
       return sessionDate >= today;
     })
-    .sort((a, b) => parseDateValue(a.date) - parseDateValue(b.date))
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
     .slice(0, 1);
   
   // Select featured deal in priority order: pending > active > closed > passed
-  const featuredDeal = deals.find(d => d.status === 'pending') 
+  const rawFeaturedDeal = deals.find(d => d.status === 'pending')
     || deals.find(d => d.status === 'active')
     || deals.find(d => d.status === 'closed')
     || deals.find(d => d.status === 'passed');
+
+  // Pull deal-room enrichment (image, terms, description) for the featured deal
+  const [dealRoomInfo, setDealRoomInfo] = useState({});
+  const [dealRoomLoading, setDealRoomLoading] = useState(!!rawFeaturedDeal?.source_deal_id);
+  useEffect(() => {
+    if (!rawFeaturedDeal?.source_deal_id) {
+      setDealRoomLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setDealRoomLoading(true);
+    callDealRoomMember('getDealsInfo', { sourceDealIds: [rawFeaturedDeal.source_deal_id] })
+      .then(({ byId }) => { if (!cancelled) setDealRoomInfo(byId || {}); })
+      .catch(err => console.error('Failed to load deal-room info for dashboard:', err))
+      .finally(() => { if (!cancelled) setDealRoomLoading(false); });
+    return () => { cancelled = true; };
+  }, [rawFeaturedDeal?.source_deal_id]);
+
+  const featuredDealInfo = rawFeaturedDeal?.source_deal_id ? dealRoomInfo[rawFeaturedDeal.source_deal_id] : null;
+  const featuredDeal = rawFeaturedDeal && featuredDealInfo
+    ? { ...rawFeaturedDeal, ...(featuredDealInfo.terms || {}) }
+    : rawFeaturedDeal;
   
   // Get 4 most recent content items
   const recentContent = content?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 4) || [];
@@ -224,15 +247,27 @@ const MemberDashboard = ({ members, sessions, deals, announcements, avTeam, cont
             </button>
           </div>
           <div className="flex-1 flex flex-col">
-          {featuredDeal ? (
+          {dealRoomLoading ? (
+            <div className="flex-1 flex items-center justify-center py-8">
+              <div className="w-8 h-8 border-2 border-gray-200 border-t-gray-400 rounded-full animate-spin"></div>
+            </div>
+          ) : featuredDeal ? (
             <div className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all bg-white flex flex-col h-full">
               <div className="flex gap-3 mb-4">
                 <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden bg-white border border-gray-200 flex-shrink-0">
-                  {featuredDeal.company_logo ? (
-                    <img src={featuredDeal.company_logo} alt={featuredDeal.company_name} className="w-full h-full object-contain" />
-                  ) : (
-                    <img src="/av-logo.png" alt="AV" className="w-7 h-7 object-contain" />
-                  )}
+                  {(() => {
+                    const logoSrc = featuredDeal.company_image_path || featuredDeal.company_logo;
+                    return logoSrc ? (
+                      <img
+                        src={logoSrc}
+                        alt={featuredDeal.company_name}
+                        className="w-full h-full object-contain"
+                        onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/av-logo.png'; e.currentTarget.className = 'w-7 h-7 object-contain'; }}
+                      />
+                    ) : (
+                      <img src="/av-logo.png" alt="AV" className="w-7 h-7 object-contain" />
+                    );
+                  })()}
                 </div>
                 <div className="flex-1 ml-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -262,24 +297,34 @@ const MemberDashboard = ({ members, sessions, deals, announcements, avTeam, cont
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
-                {featuredDeal.sector && (
-                  <div>
-                    <span className="text-gray-500">Sector:</span>
-                    <span className="ml-2 font-medium text-gray-900">{featuredDeal.sector}</span>
+              <div className="mb-4 text-sm leading-relaxed">
+                {(featuredDeal.sector || featuredDeal.stage) && (
+                  <div className="mb-1.5">
+                    {featuredDeal.sector && (
+                      <span className="mr-9">
+                        <span className="text-xs uppercase tracking-wider font-bold text-gray-700 mr-1.5">Sector:</span>
+                        <span className="text-gray-800">{featuredDeal.sector}</span>
+                      </span>
+                    )}
+                    {featuredDeal.stage && (
+                      <span>
+                        <span className="text-xs uppercase tracking-wider font-bold text-gray-700 mr-1.5">Stage:</span>
+                        <span className="text-gray-800">{featuredDeal.stage}</span>
+                      </span>
+                    )}
                   </div>
                 )}
                 {featuredDeal.lead_investor && (
-                  <div>
-                    <span className="text-gray-500">Lead:</span>
-                    <span className="ml-2 font-medium text-gray-900">{featuredDeal.lead_investor}</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-xs uppercase tracking-wider font-bold text-gray-700 flex-shrink-0">Lead:</span>
+                    <span className="text-gray-800 truncate min-w-0" title={featuredDeal.lead_investor}>{featuredDeal.lead_investor}</span>
                   </div>
                 )}
               </div>
               
               {(featuredDeal.deal_deadline || featuredDeal.voting_deadline) && (
                 <p className="text-xs text-amber-600 mb-4 font-medium">
-                  Deadline: {formatDate(featuredDeal.deal_deadline || featuredDeal.voting_deadline)}
+                  Deadline: {new Date(featuredDeal.deal_deadline || featuredDeal.voting_deadline).toLocaleDateString()}
                 </p>
               )}
               
@@ -335,7 +380,7 @@ const MemberDashboard = ({ members, sessions, deals, announcements, avTeam, cont
               <div 
                 key={item.id} 
                 className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer bg-white"
-                onClick={() => window.open(item.file_url || item.url, '_blank')}
+                onClick={() => window.open(resolveStorageUrl(item.file_url || item.url, 'content-files'), '_blank')}
               >
                 <Badge variant="primary" className="mb-4 text-xs">{item.category}</Badge>
                 <h4 className="font-semibold text-gray-900 mb-2 text-sm line-clamp-1 leading-tight ml-2">{item.title}</h4>

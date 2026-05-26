@@ -10,12 +10,12 @@ const AdminSessions = ({ sessions, deals, members = [], onRefresh }) => {
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [creatingCalendarFor, setCreatingCalendarFor] = useState(null);
+  const [warningModal, setWarningModal] = useState({ open: false, session: null, url: null });
   const [calendarCreatedLocal, setCalendarCreatedLocal] = useState({});
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [notesSession, setNotesSession] = useState(null);
   const [notesLoading, setNotesLoading] = useState(false);
   const [notesData, setNotesData] = useState({ attendees: [], participants: [], meeting_notes: '' });
-  const [warningModal, setWarningModal] = useState({ open: false, session: null, url: null });
   const [formData, setFormData] = useState({
     type: 'seminar',
     title: '',
@@ -77,7 +77,8 @@ const AdminSessions = ({ sessions, deals, members = [], onRefresh }) => {
     const addGuests = encodeURIComponent(guestEmails.join(','));
     const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}&add=${addGuests}`;
 
-    setCreatingCalendarFor(null);
+    // Keep the button in its pending state while the modal is up so it
+    // doesn't flicker back to the default label before the modal renders.
     setWarningModal({ open: true, session, url });
   };
 
@@ -87,7 +88,6 @@ const AdminSessions = ({ sessions, deals, members = [], onRefresh }) => {
 
     setWarningModal({ open: false, session: null, url: null });
     window.open(url, '_blank', 'noopener,noreferrer');
-    setCreatingCalendarFor(session.id);
 
     const { error: updateError } = await supabase
       .from('sessions')
@@ -107,6 +107,7 @@ const AdminSessions = ({ sessions, deals, members = [], onRefresh }) => {
 
   const cancelCreateGoogleCalendar = () => {
     setWarningModal({ open: false, session: null, url: null });
+    setCreatingCalendarFor(null);
   };
 
   const handleCalendarReset = async (session) => {

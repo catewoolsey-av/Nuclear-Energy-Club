@@ -112,7 +112,8 @@ export default async (req, context) => {
           );
 
           if (uploadRes.ok) {
-            storedPhotoUrl = `${supabaseUrl}/storage/v1/object/public/profile-photos/${filePath}`;
+            // Store the bare storage path; reads go through /api/storage-redirect.
+            storedPhotoUrl = filePath;
           } else {
             console.error('Photo upload error:', await uploadRes.text());
           }

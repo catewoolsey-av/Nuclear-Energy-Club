@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Mail, Phone, Linkedin, MapPin, User, Star, Eye, Sav
 import { supabase } from '../../supabase';
 import { Button, Card, Badge, Modal, Avatar } from '../../components/ui';
 import { PROFILE_OPTIONS } from '../../constants/profileOptions';
+import { resolveStorageUrl } from '../../utils/storageUrl';
 
 const AdminAVTeam = ({ avTeam, onRefresh }) => {
   const [showModal, setShowModal] = useState(false);
@@ -112,10 +113,8 @@ const AdminAVTeam = ({ avTeam, onRefresh }) => {
         .from('profile-photos')
         .upload(filePath, file, { cacheControl: '3600', upsert: true });
       if (error) throw error;
-      const { data: urlData } = supabase.storage
-        .from('profile-photos')
-        .getPublicUrl(filePath);
-      setFormData(prev => ({ ...prev, photo_url: urlData.publicUrl }));
+      // Store the bare storage path; reads go through /api/storage-redirect.
+      setFormData(prev => ({ ...prev, photo_url: filePath }));
     } catch (err) {
       console.error('Photo upload error:', err);
       alert('Error uploading photo: ' + err.message);
@@ -387,7 +386,7 @@ const AdminAVTeam = ({ avTeam, onRefresh }) => {
                   title={formData.photo_url ? 'Profile photo selected' : 'Upload profile photo'}
                 >
                   {formData.photo_url ? (
-                    <img src={formData.photo_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                    <img src={resolveStorageUrl(formData.photo_url, 'profile-photos')} alt="" className="w-8 h-8 rounded-full object-cover" />
                   ) : (
                     <Upload size={16} className="text-gray-400" />
                   )}

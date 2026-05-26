@@ -2,15 +2,15 @@ import React, { useState } from 'react';
 import { BookOpen, Video, FileText, ExternalLink, Play, Eye, Calendar, Download } from 'lucide-react';
 import { Card, Badge, Button, Modal } from '../../components/ui';
 import { formatDate } from '../../utils/formatters';
+import { resolveStorageUrl } from '../../utils/storageUrl';
 
 const MemberContent = ({ content, sessions }) => {
   const [selectedContent, setSelectedContent] = useState(null);
-  
+
   const handleDownload = (item) => {
-    if (item.file_url) {
-      window.open(item.file_url, '_blank');
-    } else if (item.url) {
-      window.open(item.url, '_blank');
+    const raw = item.file_url || item.url;
+    if (raw) {
+      window.open(resolveStorageUrl(raw, 'content-files'), '_blank');
     } else {
       alert('Download not available for this item');
     }

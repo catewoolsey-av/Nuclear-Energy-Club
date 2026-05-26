@@ -57,18 +57,13 @@ const AdminContent = ({ content, onRefresh }) => {
       
       if (error) throw error;
       
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('content-files')
-        .getPublicUrl(filePath);
-      
       // Auto-detect content type from file
       const detectedType = fileTypeMap[file.type] || 'article';
-      
-      // Update form with file info
+
+      // Store the bare storage path; reads go through /api/storage-redirect.
       setFormData(prev => ({
         ...prev,
-        url: urlData.publicUrl,
+        url: filePath,
         file_name: file.name,
         type: detectedType,
         title: prev.title || file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '),

@@ -2,5 +2,7 @@ export { Button } from './Button';
 export { Card } from './Card';
 export { Badge } from './Badge';
 export { Modal } from './Modal';
+export { DocumentModal } from './DocumentModal';
+export { VideoModal } from './VideoModal';
 export { LoadingSpinner } from './LoadingSpinner';
 export { Avatar } from './Avatar';
