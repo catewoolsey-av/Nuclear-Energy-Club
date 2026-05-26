@@ -1,6 +1,7 @@
 import React from 'react';
 import { Home, Calendar, TrendingUp, Briefcase, Users, BookOpen, BarChart3, Star, Bell, Settings, LogOut, CheckSquare } from 'lucide-react';
 import { resolveAssetUrl } from '../../utils/assetUrls';
+import { resolveStorageUrl } from '../../utils/storageUrl';
 
 export const Sidebar = ({ currentView, setCurrentView, userRole, isOpen, setIsOpen, isAdmin, onLogoutAdmin, onAdminClick, currentUser, onMemberLogout, siteSettings }) => {
   const memberNav = [
@@ -84,7 +85,7 @@ export const Sidebar = ({ currentView, setCurrentView, userRole, isOpen, setIsOp
             >
               <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg overflow-hidden" style={{ backgroundColor: accentColor }}>
                 {currentUser.photo_url ? (
-                  <img src={currentUser.photo_url} alt="" className="w-full h-full object-cover" />
+                  <img src={resolveStorageUrl(currentUser.photo_url, 'profile-photos')} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-white font-medium text-sm">
                     {currentUser.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?'}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { resolveStorageUrl } from '../../utils/storageUrl';
 
 /**
  * Avatar Component - Shows initials by default, emoji as fallback
@@ -38,10 +39,11 @@ export const Avatar = ({
   };
 
   const initials = getInitials(fullName);
-  
+
   // Determine if we should show emoji or initials
   const shouldShowEmoji = showEmoji && emoji && emoji !== '👤' && emoji !== 'initials' && emoji !== 'initial';
   const hasPhoto = !!photoUrl;
+  const resolvedPhotoUrl = hasPhoto ? resolveStorageUrl(photoUrl, 'profile-photos') : '';
 
   return (
     <div 
@@ -49,7 +51,7 @@ export const Avatar = ({
       style={{ backgroundColor }}
     >
       {hasPhoto ? (
-        <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+        <img src={resolvedPhotoUrl} alt="" className="w-full h-full object-cover" />
       ) : shouldShowEmoji ? (
         <span className="text-[1.2em]">{emoji}</span>
       ) : (

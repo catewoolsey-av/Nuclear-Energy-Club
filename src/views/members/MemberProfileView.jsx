@@ -2,6 +2,7 @@ import React from 'react';
 import { Mail, Phone, Linkedin, MapPin, Clock, ChevronRight, User } from 'lucide-react';
 import { Button, Card, Badge, Avatar } from '../../components/ui';
 import { DealInterestCard } from '../../contexts/MessagingContext';
+import { resolveStorageUrl } from '../../utils/storageUrl';
 
 const MemberProfileView = ({ member, currentUser, isOwnProfile, onBack, backLabel = 'Back to Members', onRefresh, isAdmin }) => {
   if (!member) {
@@ -31,7 +32,7 @@ const MemberProfileView = ({ member, currentUser, isOwnProfile, onBack, backLabe
           <div className="relative">
             {member.photo_url ? (
               <div className="w-32 h-32 rounded-full overflow-hidden">
-                <img src={member.photo_url} alt={member.full_name} className="w-full h-full object-cover" />
+                <img src={resolveStorageUrl(member.photo_url, 'profile-photos')} alt={member.full_name} className="w-full h-full object-cover" />
               </div>
             ) : (
               <Avatar 

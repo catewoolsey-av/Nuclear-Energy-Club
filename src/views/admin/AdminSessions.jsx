@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit, Trash2, Clock, MapPin, Users, Video, ExternalLink, Calendar, TrendingUp, BookOpen, ClipboardList } from 'lucide-react';
+import { Plus, Edit, Trash2, Clock, MapPin, Users, Video, ExternalLink, Calendar, TrendingUp, BookOpen, ClipboardList, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../supabase';
 import { formatDate, formatTime } from '../../utils/formatters';
 import { Button, Card, Badge, Modal } from '../../components/ui';
@@ -10,6 +10,7 @@ const AdminSessions = ({ sessions, deals, members = [], onRefresh }) => {
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [creatingCalendarFor, setCreatingCalendarFor] = useState(null);
+  const [warningModal, setWarningModal] = useState({ open: false, session: null, url: null });
   const [calendarCreatedLocal, setCalendarCreatedLocal] = useState({});
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [notesSession, setNotesSession] = useState(null);
@@ -76,6 +77,18 @@ const AdminSessions = ({ sessions, deals, members = [], onRefresh }) => {
     const addGuests = encodeURIComponent(guestEmails.join(','));
     const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}&add=${addGuests}`;
 
+    // Keep the button in its pending state while the modal is up so it
+    // doesn't flicker back to the default label before the modal renders.
+    setWarningModal({ open: true, session, url });
+  };
+
+  const confirmCreateGoogleCalendar = async () => {
+    const { session, url } = warningModal;
+    if (!session || !url) return;
+
+    setWarningModal({ open: false, session: null, url: null });
+    window.open(url, '_blank', 'noopener,noreferrer');
+
     const { error: updateError } = await supabase
       .from('sessions')
       .update({ google_calendar_link: url })
@@ -89,7 +102,11 @@ const AdminSessions = ({ sessions, deals, members = [], onRefresh }) => {
 
     setCalendarCreatedLocal((prev) => ({ ...prev, [session.id]: true }));
     if (onRefresh) onRefresh();
-    window.open(url, '_blank', 'noopener,noreferrer');
+    setCreatingCalendarFor(null);
+  };
+
+  const cancelCreateGoogleCalendar = () => {
+    setWarningModal({ open: false, session: null, url: null });
     setCreatingCalendarFor(null);
   };
 
@@ -719,6 +736,31 @@ const AdminSessions = ({ sessions, deals, members = [], onRefresh }) => {
             <Button variant="outline" onClick={() => setShowNotesModal(false)}>Cancel</Button>
             <Button onClick={handleSaveNotes} disabled={notesLoading}>
               {notesLoading ? 'Saving...' : 'Save Notes'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={warningModal.open}
+        onClose={cancelCreateGoogleCalendar}
+        title="Before you continue"
+        size="md"
+      >
+        <div className="space-y-5">
+          <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 border-2 border-red-300">
+            <AlertTriangle className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-base text-gray-800 leading-relaxed">
+              <span className="font-bold text-red-700 uppercase tracking-wide">Warning:</span>{' '}
+              Un-check <span className="font-semibold">"Guests can see guest list"</span> before
+              saving the Google invite, or the RSVP list will be public.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button variant="outline" size="lg" onClick={cancelCreateGoogleCalendar}>Cancel</Button>
+            <Button variant="danger" size="lg" onClick={confirmCreateGoogleCalendar}>
+              I understand — open Google Calendar
             </Button>
           </div>
         </div>
