@@ -135,7 +135,10 @@ const AdminDeals = ({ deals, onRefresh }) => {
       if (error) throw error;
 
       setAlreadyAdded(prev => new Set([...prev, sb2Deal.id]));
-      onRefresh();
+      // Silent refresh — a non-silent fetchData() flips the app into its
+      // loading state, which unmounts this view and wipes the email-confirm
+      // modal state before it can render.
+      onRefresh({ silent: true });
 
       // Email prompt
       setPendingDealData({
