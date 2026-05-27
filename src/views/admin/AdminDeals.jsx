@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, FileText, ExternalLink, CheckCircle, Mail, AlertCircle, ChevronDown, ChevronRight, Globe, CalendarClock } from 'lucide-react';
+import { Plus, Trash2, FileText, ExternalLink, CheckCircle, Mail, AlertCircle, ChevronDown, ChevronRight, Globe, CalendarClock, Archive } from 'lucide-react';
 import { supabase, callDealRoomAdmin } from '../../supabase';
 import { Button, Card, Modal } from '../../components/ui';
 import { sendDealPostedEmail, sendDealActiveEmail, isEmailTestMode, CATE_EMAIL } from '../../utils/emailNotifications';
@@ -145,7 +145,7 @@ const AdminDeals = ({ deals, onRefresh }) => {
         companyName: localDeal.company_name,
         headline: localDeal.headline,
       });
-      setPendingEmailType('both');
+      setPendingEmailType('posted');
       const testMode = await isEmailTestMode();
       setEmailTestMode(testMode);
       setShowPickerModal(false);
@@ -166,6 +166,29 @@ const AdminDeals = ({ deals, onRefresh }) => {
       onRefresh();
     } catch (err) {
       alert('Error removing deal: ' + err.message);
+    }
+  };
+
+  // Send the "deal is active — invest now" reminder for a single deal.
+  // (This used to fire automatically when a deal was added; now it's manual.)
+  const openActiveEmail = async (deal) => {
+    setPendingDealData({ companyName: deal.company_name, headline: deal.headline });
+    setPendingEmailType('active');
+    const testMode = await isEmailTestMode();
+    setEmailTestMode(testMode);
+    setShowEmailConfirm(true);
+  };
+
+  // Mark a deal as past — moves it to members' Past tab and stops it showing
+  // as active. Stays in the admin list so it can be reviewed/removed later.
+  const markAsPast = async (deal) => {
+    if (!confirm(`Mark "${deal.company_name}" as past? It will move to the Past tab and no longer show as active to members.`)) return;
+    try {
+      const { error } = await supabase.from('deals').update({ status: 'closed' }).eq('id', deal.id);
+      if (error) throw error;
+      onRefresh();
+    } catch (err) {
+      alert('Error marking deal as past: ' + err.message);
     }
   };
 
@@ -340,6 +363,20 @@ const AdminDeals = ({ deals, onRefresh }) => {
                       title="Set club deadline"
                     >
                       <CalendarClock size={18} />
+                    </button>
+                    <button
+                      onClick={() => openActiveEmail(deal)}
+                      className="p-2.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="Email members: deal is active — invest now"
+                    >
+                      <Mail size={18} />
+                    </button>
+                    <button
+                      onClick={() => markAsPast(deal)}
+                      className="p-2.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="Mark deal as past"
+                    >
+                      <Archive size={18} />
                     </button>
                     <button
                       onClick={() => removeDeal(deal)}
@@ -623,7 +660,9 @@ const AdminDeals = ({ deals, onRefresh }) => {
       <Modal isOpen={showEmailConfirm} onClose={() => { setShowEmailConfirm(false); setPendingDealData(null); }} title="Send Email Notification?" size="md">
         <div className="space-y-4">
           <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
-            <p className="text-sm font-medium text-gray-900 mb-1">New deal added</p>
+            <p className="text-sm font-medium text-gray-900 mb-1">
+              {pendingEmailType === 'active' ? 'Send "deal is active — invest now" reminder' : 'New deal added'}
+            </p>
             <p className="text-sm text-gray-600">{pendingDealData?.companyName}</p>
           </div>
           <div className={`p-4 rounded-lg border ${emailTestMode ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'}`}>
