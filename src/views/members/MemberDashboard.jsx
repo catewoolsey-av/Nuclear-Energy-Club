@@ -19,11 +19,15 @@ const MemberDashboard = ({ members, sessions, deals, announcements, avTeam, cont
     .sort((a, b) => new Date(a.date) - new Date(b.date))
     .slice(0, 1);
   
-  // Select featured deal in priority order: pending > active > closed > passed
-  const rawFeaturedDeal = deals.find(d => d.status === 'pending')
-    || deals.find(d => d.status === 'active')
-    || deals.find(d => d.status === 'closed')
-    || deals.find(d => d.status === 'passed');
+  // Select featured deal in priority order: pending > active > closed > passed.
+  // Exclude deals whose closes_at deadline has elapsed — those live in the
+  // Past tab and shouldn't surface as the "Current Deal" on the dashboard.
+  const isPastDealForDashboard = (d) => !!(d.closes_at && new Date(d.closes_at).getTime() < Date.now());
+  const activeDealsOnly = deals.filter(d => !isPastDealForDashboard(d));
+  const rawFeaturedDeal = activeDealsOnly.find(d => d.status === 'pending')
+    || activeDealsOnly.find(d => d.status === 'active')
+    || activeDealsOnly.find(d => d.status === 'closed')
+    || activeDealsOnly.find(d => d.status === 'passed');
 
   // Pull deal-room enrichment (image, terms, description) for the featured deal
   const [dealRoomInfo, setDealRoomInfo] = useState({});
