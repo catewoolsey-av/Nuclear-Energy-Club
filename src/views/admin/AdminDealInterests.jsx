@@ -17,6 +17,7 @@ const AdminDealInterests = ({ onRefresh }) => {
   const [editingRowId, setEditingRowId] = useState(null);
   const [editDecision, setEditDecision] = useState('invest');
   const [editAmount, setEditAmount] = useState('');
+  const [editDealContext, setEditDealContext] = useState(null);
   const [savingEditId, setSavingEditId] = useState(null);
 
   useEffect(() => {
@@ -255,35 +256,54 @@ const AdminDealInterests = ({ onRefresh }) => {
     showToast(`Sent ${sent} of ${pending.length} reminders`);
   };
 
-  const startEdit = (row) => {
+  const startEdit = (row, deal) => {
     setEditingRowId(row.id);
     setEditDecision(row.decision === 'pass' ? 'pass' : 'invest');
     setEditAmount(row.amount != null ? String(row.amount) : '');
+    // Stash the deal context so saveEdit can create a response on a row that
+    // doesn't have one yet (pending-* synthetic rows have no responseId).
+    setEditDealContext({ sourceDealId: deal.source_deal_id, dealId: deal.id });
   };
 
   const cancelEdit = () => {
     setEditingRowId(null);
+    setEditDealContext(null);
   };
 
   const saveEdit = async (row) => {
+    // Invest requires a numeric amount (> 0). Pass has no amount.
     let desiredAmount = null;
     if (editDecision === 'invest') {
       const parsed = parseFloat(editAmount);
       if (!Number.isFinite(parsed) || parsed <= 0) {
-        alert('Enter a valid interest amount (greater than 0) for an Invest decision.');
+        alert('Please enter an interest amount (greater than 0) for an Invest decision.');
         return;
       }
       desiredAmount = parsed;
     }
     setSavingEditId(row.id);
     try {
-      await callDealRoomAdmin('updateResponse', {
-        responseId: row.id,
-        decision: editDecision,
-        desiredAmount,
-      });
+      if (String(row.id).startsWith('pending-')) {
+        if (!editDealContext?.sourceDealId) {
+          throw new Error('Deal is not linked to the deal room yet (no source_deal_id). Cannot record a response.');
+        }
+        await callDealRoomAdmin('upsertResponseForMember', {
+          sourceDealId: editDealContext.sourceDealId,
+          email: row.email,
+          fullName: row.name,
+          decision: editDecision,
+          desiredAmount,
+        });
+      } else {
+        await callDealRoomAdmin('updateResponse', {
+          responseId: row.id,
+          decision: editDecision,
+          desiredAmount,
+        });
+      }
       showToast(`Updated ${row.name}'s response`);
       setEditingRowId(null);
+      setEditDealContext(null);
       await loadData();
     } catch (err) {
       alert(`Failed to update: ${err.message || err}`);
@@ -319,9 +339,14 @@ const AdminDealInterests = ({ onRefresh }) => {
       {deals.map(deal => {
         const isExpanded = expandedDeals[deal.id];
         const rows = getMemberRows(deal.id, deal.source_deal_id);
-        const pendingCount = rows.filter(r => r.decision === 'pending').length;
+        // A deal is past once its closes_at is in the past. Non-responders on
+        // a past deal are reclassified from "pending" → "no response" (red).
+        const isDealPast = !!(deal.closes_at && new Date(deal.closes_at).getTime() < Date.now());
+        const unansweredCount = rows.filter(r => r.decision === 'pending').length;
         const investCount = rows.filter(r => r.decision === 'invest').length;
         const passCount = rows.filter(r => r.decision === 'pass').length;
+        const pendingCount = isDealPast ? 0 : unansweredCount;
+        const noResponseCount = isDealPast ? unansweredCount : 0;
         const dealName = deal.company_name || 'Unnamed Deal';
 
         return (
@@ -377,7 +402,11 @@ const AdminDealInterests = ({ onRefresh }) => {
               <div className="flex items-center gap-4 text-sm flex-shrink-0">
                 <span className="text-green-600 font-medium">{investCount} invest</span>
                 <span className="text-gray-500">{passCount} pass</span>
-                <span className="text-amber-600">{pendingCount} pending</span>
+                {isDealPast ? (
+                  <span className="text-red-600 font-medium">{noResponseCount} no response</span>
+                ) : (
+                  <span className="text-amber-600">{pendingCount} pending</span>
+                )}
               </div>
             </div>
 
@@ -387,7 +416,7 @@ const AdminDealInterests = ({ onRefresh }) => {
                 {/* Section header */}
                 <div className="flex items-center justify-between px-6 py-4">
                   <h4 className="font-semibold text-gray-900">Member Responses</h4>
-                  {pendingCount > 0 && (
+                  {unansweredCount > 0 && !isDealPast && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -460,7 +489,11 @@ const AdminDealInterests = ({ onRefresh }) => {
                                   <span className="text-gray-600">Pass</span>
                                 )}
                                 {row.decision === 'pending' && (
-                                  <span className="text-amber-600 font-medium">Pending</span>
+                                  isDealPast ? (
+                                    <span className="text-red-600 font-medium">No Response</span>
+                                  ) : (
+                                    <span className="text-amber-600 font-medium">Pending</span>
+                                  )
                                 )}
                                 {!['invest', 'pass', 'pending'].includes(row.decision) && (
                                   <span className="text-gray-500">{row.decision}</span>
@@ -526,16 +559,14 @@ const AdminDealInterests = ({ onRefresh }) => {
                                 </>
                               ) : (
                                 <>
-                                  {!String(row.id).startsWith('pending-') && (row.decision === 'invest' || row.decision === 'pass') && (
-                                    <button
-                                      onClick={() => startEdit(row)}
-                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                      title={`Edit ${row.name}'s response`}
-                                    >
-                                      <Pencil className="w-4 h-4" />
-                                      <span>Edit</span>
-                                    </button>
-                                  )}
+                                  <button
+                                    onClick={() => startEdit(row, deal)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                    title={`Edit ${row.name}'s response`}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                    <span>Edit</span>
+                                  </button>
                                   <button
                                     onClick={() => {
                                       if (!confirm(`Send a reminder email to ${row.name} (${row.email}) for ${dealName}?`)) return;

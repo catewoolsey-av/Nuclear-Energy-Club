@@ -20,6 +20,24 @@ const getSb2 = () =>
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
+async function findOrCreateSb2UserByEmail(sb2, email, fullName) {
+  const { data: existing } = await sb2
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle();
+  if (existing) return existing.id;
+
+  const parts = (fullName || '').trim().split(/\s+/);
+  const { data: created, error } = await sb2
+    .from('users')
+    .insert([{ email, first_name: parts[0] || '', last_name: parts.slice(1).join(' ') || '' }])
+    .select('id')
+    .single();
+  if (error) throw new Error(`Failed to create SB2 user: ${error.message}`);
+  return created.id;
+}
+
 async function authenticateAdmin(sb1, device_id) {
   if (!device_id) return { error: 'Missing device_id' };
 
@@ -138,7 +156,7 @@ export default async (req) => {
       if (decision !== 'invest' && decision !== 'pass') {
         return json(400, { error: 'Invalid decision' });
       }
-      // pass = no amount; invest can have a numeric amount or null
+      // pass = no amount; invest can have a numeric amount or null (Max)
       const amount = decision === 'pass' ? null : (desiredAmount ?? null);
       const { error: updErr } = await sb2
         .from('dr_responses')
@@ -150,6 +168,53 @@ export default async (req) => {
         .eq('id', responseId);
       if (updErr) throw updErr;
       return json(200, { success: true });
+    }
+
+    if (action === 'upsertResponseForMember') {
+      // Admin recording a response on behalf of a member who hasn't submitted
+      // one themselves yet (or replacing an existing one). Auto-creates the
+      // SB2 user if missing so members who've never logged into the deal room
+      // can still have their decision logged.
+      const { sourceDealId, email, fullName, decision, desiredAmount } = body;
+      if (!sourceDealId || !email) return json(400, { error: 'Missing sourceDealId or email' });
+      if (decision !== 'invest' && decision !== 'pass') {
+        return json(400, { error: 'Invalid decision' });
+      }
+      const cleanEmail = String(email).toLowerCase().trim();
+      const userId = await findOrCreateSb2UserByEmail(sb2, cleanEmail, fullName);
+
+      const { data: existing } = await sb2
+        .from('dr_responses')
+        .select('id, submitted_at')
+        .eq('deal_id', sourceDealId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const amount = decision === 'pass' ? null : (desiredAmount ?? null);
+      const now = new Date().toISOString();
+
+      if (existing) {
+        const patch = { decision, desired_amount: amount, updated_at: now };
+        if (!existing.submitted_at) patch.submitted_at = now;
+        const { error } = await sb2.from('dr_responses').update(patch).eq('id', existing.id);
+        if (error) throw error;
+        return json(200, { success: true, id: existing.id, updated: true });
+      }
+
+      const { data: inserted, error } = await sb2
+        .from('dr_responses')
+        .insert([{
+          deal_id: sourceDealId,
+          user_id: userId,
+          decision,
+          desired_amount: amount,
+          submitted_at: now,
+          reminders_sent: 0,
+        }])
+        .select('id')
+        .single();
+      if (error) throw error;
+      return json(200, { success: true, id: inserted.id, updated: false });
     }
 
     if (action === 'listAllResponsesAndUsers') {
