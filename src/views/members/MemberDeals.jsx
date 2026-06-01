@@ -250,18 +250,11 @@ const MemberDeals = ({ deals, currentUser }) => {
         // --- Fallback: write to local deal_interests ---
         const existingInterest = dealInterests[selectedDeal.id];
 
+        // Amount encoding: NULL = max allocation, number = up-to dollar cap.
+        // The reason is stored verbatim — no prefix.
         let formattedAmount = null;
-        let formattedReason = reason;
-
-        if (interestType === 'want_to_invest') {
-          if (investmentAmountType === 'max') {
-            formattedReason = `[MAXIMUM ALLOCATION REQUESTED]\n\n${reason}`;
-          } else if (investmentAmountType === 'up_to') {
-            formattedAmount = parseFloat(investmentAmount);
-            formattedReason = `[UP TO $${parseInt(investmentAmount).toLocaleString()}]\n\n${reason}`;
-          } else {
-            formattedAmount = parseFloat(investmentAmount);
-          }
+        if (interestType === 'want_to_invest' && investmentAmountType !== 'max') {
+          formattedAmount = parseFloat(investmentAmount);
         }
 
         if (existingInterest?.id && !String(existingInterest.id).startsWith('pending-')) {
@@ -270,7 +263,7 @@ const MemberDeals = ({ deals, currentUser }) => {
             .update({
               interest_type: interestType,
               investment_amount: formattedAmount,
-              reason: formattedReason,
+              reason,
               status: 'pending',
               updated_at: new Date().toISOString(),
             })
@@ -283,7 +276,7 @@ const MemberDeals = ({ deals, currentUser }) => {
               deal_id: selectedDeal.id,
               interest_type: interestType,
               investment_amount: formattedAmount,
-              reason: formattedReason,
+              reason,
               status: 'pending',
             }]);
         }
@@ -544,8 +537,10 @@ const MemberDeals = ({ deals, currentUser }) => {
               excitement = rawExcitement;
             }
           }
-          const investedAmountLabel = userInterest?.interest_type === 'want_to_invest' && userInterest.investment_amount
-            ? ` · $${Number(userInterest.investment_amount).toLocaleString()}`
+          const investedAmountLabel = userInterest?.interest_type === 'want_to_invest'
+            ? (userInterest.investment_amount
+                ? ` · $${Number(userInterest.investment_amount).toLocaleString()}`
+                : ' · Max')
             : '';
 
           return (

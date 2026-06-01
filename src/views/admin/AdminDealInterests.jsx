@@ -117,7 +117,9 @@ const AdminDealInterests = ({ onRefresh }) => {
     return `${days} day${days > 1 ? 's' : ''} ago`;
   };
 
-  const formatAmount = (amount) => {
+  const formatAmount = (amount, decision) => {
+    // Invest with no amount = max allocation requested.
+    if (decision === 'invest' && (amount == null || amount === '')) return 'Max';
     if (!amount) return '—';
     const num = Number(amount);
     if (isNaN(num)) return '—';
@@ -486,7 +488,7 @@ const AdminDealInterests = ({ onRefresh }) => {
                                 <span className="text-gray-400">—</span>
                               )
                             ) : (
-                              formatAmount(row.amount)
+                              formatAmount(row.amount, row.decision)
                             )}
                           </td>
                           <td className="px-6 py-4 text-gray-700 max-w-xs">
