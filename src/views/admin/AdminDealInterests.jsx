@@ -402,10 +402,9 @@ const AdminDealInterests = ({ onRefresh }) => {
               <div className="flex items-center gap-4 text-sm flex-shrink-0">
                 <span className="text-green-600 font-medium">{investCount} invest</span>
                 <span className="text-gray-500">{passCount} pass</span>
-                {isDealPast ? (
+                <span className="text-amber-600">{pendingCount} pending</span>
+                {isDealPast && (
                   <span className="text-red-600 font-medium">{noResponseCount} no response</span>
-                ) : (
-                  <span className="text-amber-600">{pendingCount} pending</span>
                 )}
               </div>
             </div>
