@@ -1,12 +1,8 @@
 import React, { useState } from 'react';
 import { Plus, Edit, Trash2, Clock, MapPin, Users, Video, ExternalLink, Calendar, TrendingUp, BookOpen, ClipboardList, AlertTriangle, Search } from 'lucide-react';
-import { supabase, callDealRoomAdmin } from '../../supabase';
+import { supabase, callDealRoomAdmin, SB2_CLUB_SLUG } from '../../supabase';
 import { formatDate, formatTime } from '../../utils/formatters';
 import { Button, Card, Badge, Modal } from '../../components/ui';
-
-// Maps this portal to its row in SB2 public.clubs (used when mirroring meeting
-// notes to SB2 so ClubManagementCW + other cross-club views can read them).
-const SB2_CLUB_SLUG = 'nuclear-and-energy-club-1';
 
 const AdminSessions = ({ sessions, deals, members = [], onRefresh }) => {
   const [showModal, setShowModal] = useState(false);

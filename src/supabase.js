@@ -5,6 +5,11 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+// Maps this portal to its row in SB2 public.clubs. Used to scope dr_responses
+// (and meeting mirrors) by club so a member's decision in one club doesn't
+// bleed into another club they're also in.
+export const SB2_CLUB_SLUG = 'nuclear-and-energy-club-1'
+
 export const getDeviceId = () => {
   let deviceId = localStorage.getItem('ngvc_device_id')
   if (!deviceId) {
@@ -18,7 +23,9 @@ const callDealRoom = async (path, action, args = {}) => {
   const res = await fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ device_id: getDeviceId(), action, ...args }),
+    // clubSlug auto-attaches so dr_responses + meeting writes are club-scoped
+    // without each call site needing to remember to pass it.
+    body: JSON.stringify({ device_id: getDeviceId(), action, clubSlug: SB2_CLUB_SLUG, ...args }),
   })
   const text = await res.text()
   const contentType = res.headers.get('content-type') || ''

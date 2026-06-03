@@ -57,13 +57,21 @@ export default async (req) => {
 
   try {
     const body = await req.json();
-    const { device_id, action } = body;
+    const { device_id, action, clubSlug } = body;
 
     const sb1 = getSb1();
     const auth = await authenticateAdmin(sb1, device_id);
     if (auth.error) return json(401, { error: auth.error });
 
     const sb2 = getSb2();
+
+    // Resolve club_id once per request. dr_responses are scoped to a club so
+    // a member's decision in one portal doesn't bleed into another.
+    const clubId = await (async () => {
+      if (!clubSlug) return null;
+      const { data } = await sb2.from('clubs').select('id').eq('slug', clubSlug).maybeSingle();
+      return data?.id || null;
+    })();
 
     if (action === 'listSourceDeals') {
       const { data, error } = await sb2
@@ -194,14 +202,18 @@ export default async (req) => {
       if (decision !== 'invest' && decision !== 'pass') {
         return json(400, { error: 'Invalid decision' });
       }
+      if (!clubId) return json(400, { error: 'Missing or invalid clubSlug' });
       const cleanEmail = String(email).toLowerCase().trim();
       const userId = await findOrCreateSb2UserByEmail(sb2, cleanEmail, fullName);
 
+      // Look up an existing row scoped to this club (same user can have a
+      // separate response per club).
       const { data: existing } = await sb2
         .from('dr_responses')
         .select('id, submitted_at')
         .eq('deal_id', sourceDealId)
         .eq('user_id', userId)
+        .eq('club_id', clubId)
         .maybeSingle();
 
       const amount = decision === 'pass' ? null : (desiredAmount ?? null);
@@ -221,6 +233,7 @@ export default async (req) => {
         .insert([{
           deal_id: sourceDealId,
           user_id: userId,
+          club_id: clubId,
           decision,
           desired_amount: amount,
           reason: reason || null,
@@ -352,8 +365,12 @@ export default async (req) => {
     }
 
     if (action === 'listAllResponsesAndUsers') {
+      // Only return responses recorded against THIS club so admins don't see
+      // members' decisions from other clubs they're in.
+      let respQuery = sb2.from('dr_responses').select('*').not('user_id', 'is', null);
+      if (clubId) respQuery = respQuery.eq('club_id', clubId);
       const [respRes, usersRes] = await Promise.all([
-        sb2.from('dr_responses').select('*').not('user_id', 'is', null),
+        respQuery,
         sb2.from('users').select('id, email, first_name, last_name'),
       ]);
 

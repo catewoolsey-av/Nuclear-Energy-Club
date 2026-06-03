@@ -74,7 +74,7 @@ export default async (req) => {
 
   try {
     const body = await req.json();
-    const { device_id, action } = body;
+    const { device_id, action, clubSlug } = body;
 
     const sb1 = getSb1();
     const auth = await authenticate(sb1, device_id);
@@ -82,6 +82,14 @@ export default async (req) => {
 
     const { member } = auth;
     const sb2 = getSb2();
+
+    // Resolve club_id once per request. dr_responses are now scoped to a club
+    // so a member's decision in one portal doesn't bleed into another.
+    const clubId = await (async () => {
+      if (!clubSlug) return null;
+      const { data } = await sb2.from('clubs').select('id').eq('slug', clubSlug).maybeSingle();
+      return data?.id || null;
+    })();
 
     if (action === 'getMyResponses') {
       const userId = await (async () => {
@@ -95,11 +103,13 @@ export default async (req) => {
 
       if (!userId) return json(200, { responses: [] });
 
-      const { data: responses, error } = await sb2
+      let q = sb2
         .from('dr_responses')
-        .select('id, deal_id, decision, desired_amount, submitted_at, created_at')
+        .select('id, deal_id, decision, desired_amount, submitted_at, created_at, club_id')
         .eq('user_id', userId)
         .not('user_id', 'is', null);
+      if (clubId) q = q.eq('club_id', clubId);
+      const { data: responses, error } = await q;
 
       if (error) throw error;
       return json(200, { responses: responses || [] });
@@ -176,14 +186,18 @@ export default async (req) => {
       if (decision !== 'invest' && decision !== 'pass') {
         return json(400, { error: 'Invalid decision' });
       }
+      if (!clubId) return json(400, { error: 'Missing or invalid clubSlug' });
 
       const userId = await findOrCreateSb2User(sb2, member);
 
+      // Existing row lookup is scoped by club so the same user can have an
+      // independent response per club.
       const { data: existing } = await sb2
         .from('dr_responses')
         .select('id')
         .eq('user_id', userId)
         .eq('deal_id', sourceDealId)
+        .eq('club_id', clubId)
         .maybeSingle();
 
       const now = new Date().toISOString();
@@ -208,6 +222,7 @@ export default async (req) => {
         .insert([{
           deal_id: sourceDealId,
           user_id: userId,
+          club_id: clubId,
           decision,
           desired_amount: desiredAmount ?? null,
           reason: reason ?? null,
