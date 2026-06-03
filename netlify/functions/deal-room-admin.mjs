@@ -308,6 +308,15 @@ export default async (req) => {
         meetingId = inserted.id;
       }
 
+      // If members is not provided (undefined/null), this is a metadata-only
+      // push — leave existing attendance alone. Callers that want to update
+      // attendance pass an array (empty array = "no attendees", which reaps
+      // all existing rows). The Save Notes flow passes an array; the
+      // Create/Edit Meeting flow doesn't.
+      if (!Array.isArray(members)) {
+        return json(200, { success: true, meetingId, metadataOnly: true });
+      }
+
       // Upsert attendance rows for the supplied members. Members not in the
       // list get their existing row deleted (admin unchecked them).
       const incomingUserIds = new Set();
@@ -362,6 +371,22 @@ export default async (req) => {
       }
 
       return json(200, { success: true, meetingId });
+    }
+
+    if (action === 'deleteMeetingFromSb2') {
+      // Mirror of handleDelete on the portal. Removes the meeting row for
+      // this (club, source_session_id); meeting_attendance cascades via FK.
+      // Quiet no-op if the row wasn't there.
+      const { sourceSessionId } = body;
+      if (!sourceSessionId) return json(400, { error: 'Missing sourceSessionId' });
+      if (!clubId) return json(400, { error: 'Missing or invalid clubSlug' });
+      const { error } = await sb2
+        .from('meetings')
+        .delete()
+        .eq('club_id', clubId)
+        .eq('source_session_id', sourceSessionId);
+      if (error) throw error;
+      return json(200, { success: true });
     }
 
     if (action === 'registerDealShare') {

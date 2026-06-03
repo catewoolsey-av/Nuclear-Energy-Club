@@ -182,55 +182,81 @@ const AdminSessions = ({ sessions, deals, members = [], onRefresh }) => {
       alert('Meeting title is required');
       return;
     }
-    
+
     setLoading(true);
     setSaveSuccess(false);
     try {
+      let savedSessionId;
       if (editingSession) {
         const { error } = await supabase
           .from('sessions')
           .update(formData)
           .eq('id', editingSession.id);
         if (error) throw error;
-        setSaveSuccess(true);
-        setTimeout(() => {
-          setShowModal(false);
-          onRefresh();
-        }, 1000);
+        savedSessionId = editingSession.id;
       } else {
-        const { error } = await supabase
+        const { data: inserted, error } = await supabase
           .from('sessions')
-          .insert([formData]);
+          .insert([formData])
+          .select('id')
+          .single();
         if (error) throw error;
-        setSaveSuccess(true);
-        setTimeout(() => {
-          setShowModal(false);
-          onRefresh();
-        }, 1000);
+        savedSessionId = inserted?.id;
       }
+
+      // Mirror meeting metadata to SB2 so cross-club views see every meeting,
+      // not just the ones notes have been recorded against. Omitting `members`
+      // means metadata-only — existing attendance (if any) stays untouched.
+      // Best-effort: SB2 sync failure shouldn't block the portal save.
+      if (savedSessionId) {
+        try {
+          await callDealRoomAdmin('pushMeetingToSb2', {
+            sourceSessionId: savedSessionId,
+            title: formData.title || null,
+            meetingType: formData.type || null,
+            hostName: formData.host_name || null,
+            scheduledAt: formData.date || null,
+          });
+        } catch (sb2Err) {
+          console.warn('SB2 meeting mirror failed (SB1 saved OK):', sb2Err);
+        }
+      }
+
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setShowModal(false);
+        onRefresh();
+      }, 1000);
     } catch (err) {
       console.error('Error saving meeting:', err);
       alert('Error saving meeting: ' + err.message);
     }
     setLoading(false);
   };
-  
   const handleDelete = async (session) => {
     if (!confirm(`Are you sure you want to delete "${session.title}"? This cannot be undone.`)) return;
-    
+
     try {
       const { error } = await supabase
         .from('sessions')
         .delete()
         .eq('id', session.id);
       if (error) throw error;
+
+      // Mirror the deletion on SB2 (cascades to meeting_attendance via FK).
+      // Best-effort.
+      try {
+        await callDealRoomAdmin('deleteMeetingFromSb2', { sourceSessionId: session.id });
+      } catch (sb2Err) {
+        console.warn('SB2 meeting delete failed:', sb2Err);
+      }
+
       onRefresh();
     } catch (err) {
       console.error('Error deleting meeting:', err);
       alert('Error deleting meeting');
     }
   };
-  
   const openNotesModal = (session) => {
     setNotesSession(session);
     setNotesData({
