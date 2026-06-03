@@ -364,6 +364,55 @@ export default async (req) => {
       return json(200, { success: true, meetingId });
     }
 
+    if (action === 'registerDealShare') {
+      // Called when a portal admin picks a deal from the SB2 picker and adds
+      // it to their club. Writes (target_type='club', target_id=club_id,
+      // deal_id=sourceDealId) so ClubManagementCW + cross-club views can see
+      // the club picked it up. Idempotent — silently returns existing row.
+      const { sourceDealId } = body;
+      if (!sourceDealId) return json(400, { error: 'Missing sourceDealId' });
+      if (!clubId) return json(400, { error: 'Missing or invalid clubSlug' });
+
+      const { data: existing } = await sb2
+        .from('deal_shares')
+        .select('id')
+        .eq('target_type', 'club')
+        .eq('target_id', clubId)
+        .eq('deal_id', sourceDealId)
+        .maybeSingle();
+      if (existing) return json(200, { success: true, id: existing.id, created: false });
+
+      const { data: inserted, error } = await sb2
+        .from('deal_shares')
+        .insert([{
+          deal_id: sourceDealId,
+          target_type: 'club',
+          target_id: clubId,
+          status: 'pending',
+          shared_at: new Date().toISOString(),
+        }])
+        .select('id')
+        .single();
+      if (error) throw error;
+      return json(200, { success: true, id: inserted.id, created: true });
+    }
+
+    if (action === 'unregisterDealShare') {
+      // Mirror of removeDeal — wipes the SB2 deal_share row for this (club,
+      // deal). Quiet no-op if the row wasn't there.
+      const { sourceDealId } = body;
+      if (!sourceDealId) return json(400, { error: 'Missing sourceDealId' });
+      if (!clubId) return json(400, { error: 'Missing or invalid clubSlug' });
+      const { error } = await sb2
+        .from('deal_shares')
+        .delete()
+        .eq('target_type', 'club')
+        .eq('target_id', clubId)
+        .eq('deal_id', sourceDealId);
+      if (error) throw error;
+      return json(200, { success: true });
+    }
+
     if (action === 'listAllResponsesAndUsers') {
       // Only return responses recorded against THIS club so admins don't see
       // members' decisions from other clubs they're in.

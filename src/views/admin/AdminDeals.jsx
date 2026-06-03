@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, FileText, ExternalLink, CheckCircle, Mail, AlertCircle, ChevronDown, ChevronRight, Globe, CalendarClock, Archive } from 'lucide-react';
+import { Plus, Trash2, FileText, ExternalLink, CheckCircle, Mail, AlertCircle, ChevronDown, ChevronRight, Globe, CalendarClock, Archive, Power } from 'lucide-react';
 import { supabase, callDealRoomAdmin } from '../../supabase';
 import { Button, Card, Modal } from '../../components/ui';
 import { sendDealPostedEmail, sendDealActiveEmail, isEmailTestMode, CATE_EMAIL } from '../../utils/emailNotifications';
@@ -134,6 +134,15 @@ const AdminDeals = ({ deals, onRefresh }) => {
       const { error } = await supabase.from('deals').insert([localDeal]);
       if (error) throw error;
 
+      // Register the share on SB2 so ClubManagementCW's Club > Deals tab and
+      // any other cross-club view can see this club picked up the deal.
+      // Best-effort — failure here shouldn't block the local insert.
+      try {
+        await callDealRoomAdmin('registerDealShare', { sourceDealId: sb2Deal.id });
+      } catch (regErr) {
+        console.warn('Failed to register deal_share on SB2 (deal added locally OK):', regErr);
+      }
+
       setAlreadyAdded(prev => new Set([...prev, sb2Deal.id]));
       // Silent refresh — a non-silent fetchData() flips the app into its
       // loading state, which unmounts this view and wipes the email-confirm
@@ -163,6 +172,15 @@ const AdminDeals = ({ deals, onRefresh }) => {
     try {
       const { error } = await supabase.from('deals').delete().eq('id', deal.id);
       if (error) throw error;
+      // Mirror the removal on SB2 deal_shares so the cross-club view stays in
+      // sync. Best-effort.
+      if (deal.source_deal_id) {
+        try {
+          await callDealRoomAdmin('unregisterDealShare', { sourceDealId: deal.source_deal_id });
+        } catch (regErr) {
+          console.warn('Failed to unregister deal_share on SB2:', regErr);
+        }
+      }
       onRefresh();
     } catch (err) {
       alert('Error removing deal: ' + err.message);
@@ -177,6 +195,22 @@ const AdminDeals = ({ deals, onRefresh }) => {
     const testMode = await isEmailTestMode();
     setEmailTestMode(testMode);
     setShowEmailConfirm(true);
+  };
+
+  // Toggle whether members can see the Invest/Pass buttons for this deal.
+  // Default is OFF; the admin opts the deal in once they're ready for member
+  // input. Doesn't send any notification — purely a visibility flag.
+  const toggleInterestActive = async (deal) => {
+    try {
+      const { error } = await supabase
+        .from('deals')
+        .update({ interest_active: !deal.interest_active })
+        .eq('id', deal.id);
+      if (error) throw error;
+      onRefresh();
+    } catch (err) {
+      alert('Error updating activation: ' + err.message);
+    }
   };
 
   // Mark a deal as past — sets the club deadline (closes_at) to now so it moves
@@ -388,6 +422,30 @@ const AdminDeals = ({ deals, onRefresh }) => {
                     >
                       <CalendarClock size={18} />
                     </button>
+                    {(() => {
+                      const isPast = !!(deal.closes_at && new Date(deal.closes_at).getTime() < Date.now());
+                      const isOn = !!deal.interest_active;
+                      return (
+                        <button
+                          onClick={() => !isPast && toggleInterestActive(deal)}
+                          disabled={isPast}
+                          className={`p-2.5 rounded-lg transition-colors ${
+                            isPast
+                              ? 'text-gray-300 cursor-not-allowed'
+                              : isOn
+                                ? 'text-green-600 bg-green-50 hover:bg-green-100'
+                                : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                          title={isPast
+                            ? 'Cannot activate a closed deal'
+                            : isOn
+                              ? 'Active — members can invest/pass. Click to deactivate.'
+                              : 'Activate — let members invest/pass'}
+                        >
+                          <Power size={18} />
+                        </button>
+                      );
+                    })()}
                     <button
                       onClick={() => openActiveEmail(deal)}
                       className="p-2.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
