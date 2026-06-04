@@ -136,7 +136,6 @@ export default function App() {
       // ignore storage errors
     }
 
-    // Refresh site settings on startup to avoid stale cached splash colors.
     try {
       await refreshSiteSettings();
     } catch {
@@ -360,6 +359,9 @@ export default function App() {
 
   useEffect(() => {
     if (!siteSettings) return;
+    document.documentElement.style.setProperty('--primary-color', siteSettings.primary_color || '#1B4D5C');
+    document.documentElement.style.setProperty('--accent-color', siteSettings.accent_color || '#C9A227');
+    document.documentElement.style.setProperty('--logo-background-color', siteSettings.logo_background_color || '#1B4D5C');
     if (siteSettings.logo_url) {
       const existingIcon = document.querySelector('link[rel~="icon"]');
       if (existingIcon) {
@@ -418,7 +420,7 @@ export default function App() {
     setIsAdmin(false); // Reset admin mode
     setCurrentView('member-login');
   };
-
+  
   const handleAdminLogin = async (remember) => {
     setIsAdmin(true);
     setCurrentView('admin-dashboard');
