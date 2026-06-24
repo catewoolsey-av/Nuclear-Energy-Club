@@ -1,7 +1,7 @@
 // Minimal markdown -> HTML for the deal `description` field.
-// Matches the spec AND spacing used by the Deal Room renderer
-// (Deal-Room/src/features/deals.js renderMarkdownSafe + .dc-opp-body CSS), so
-// the Investment Opportunity reads identically in the club portals:
+// Spec + spacing match the Deal Room's Investment Description EDITOR
+// (Deal-Room/src/styles/dealDetail.css .dd-investment-desc), so the portal
+// renders exactly what the admin composes:
 //   **text**       -> <strong>
 //   *text*         -> <em>
 //   - item / * item (at line start)  -> <ul><li>...</li></ul> (consecutive lines collapse)
@@ -10,9 +10,11 @@
 //                     intentional spacing survives the round-trip
 //   single newline -> soft line break (<br/>)
 //
-// Block spacing mirrors the Deal Room: line-height 1.7, 12px bottom margin on
-// paragraphs and lists (none on the last block), 22px list indent, 4px between
-// list items.
+// Spacing mirrors the editor's "Docs/Word feel" (commit 3d9f991): line-height
+// 1.6 supplies the inter-row spacing, so a hard paragraph break needs only a
+// small 2px gap; lists are 6px / 24px-indent with 2px between items; empty
+// paragraphs (deliberate blank lines) keep a full line (min-height: 1em) so
+// the author's intentional section spacing stays visible.
 //
 // HTML is escaped *before* markdown conversion, so user-typed <script> or
 // other markup cannot sneak through — only the formatting markers above
@@ -52,7 +54,7 @@ export function formatDealDescription(raw) {
       let n = 0;
       while (i < lines.length && lines[i].trim() === '') { n++; i++; }
       for (let k = 1; k < n; k++) {
-        out.push('<p class="leading-[1.7] min-h-[1em] mb-3 last:mb-0"><br/></p>');
+        out.push('<p class="leading-[1.6] min-h-[1em] mb-0.5 last:mb-0"><br/></p>');
       }
       continue;
     }
@@ -65,7 +67,7 @@ export function formatDealDescription(raw) {
         i++;
       }
       out.push(
-        `<ul class="list-disc leading-[1.7] pl-[22px] mb-3 last:mb-0">${items.map((it) => `<li class="mb-1 last:mb-0">${it}</li>`).join('')}</ul>`
+        `<ul class="list-disc leading-[1.6] pl-6 my-1.5 last:mb-0">${items.map((it) => `<li class="mb-0.5 last:mb-0">${it}</li>`).join('')}</ul>`
       );
       continue;
     }
@@ -80,7 +82,7 @@ export function formatDealDescription(raw) {
       para.push(applyInline(lines[i].trimEnd()));
       i++;
     }
-    out.push(`<p class="leading-[1.7] mb-3 last:mb-0">${para.join('<br/>')}</p>`);
+    out.push(`<p class="leading-[1.6] mb-0.5 last:mb-0">${para.join('<br/>')}</p>`);
   }
 
   return out.join('');
