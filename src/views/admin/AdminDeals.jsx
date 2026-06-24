@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, FileText, ExternalLink, CheckCircle, Mail, AlertCircle, ChevronDown, ChevronRight, Globe, CalendarClock, Archive, Power } from 'lucide-react';
 import { supabase, callDealRoomAdmin } from '../../supabase';
-import { Button, Card, Modal } from '../../components/ui';
+import { Button, Card, Modal, UkDealDisclaimer } from '../../components/ui';
 import { sendDealPostedEmail, sendDealActiveEmail, isEmailTestMode, CATE_EMAIL } from '../../utils/emailNotifications';
 import { formatDealDescription } from '../../utils/formatDealDescription';
 
@@ -619,6 +619,20 @@ const AdminDeals = ({ deals, onRefresh }) => {
                         </div>
                       )}
                     </div>
+
+                    {/* UK regulatory disclaimer — admin preview. For UK deals this
+                        auto-displays on the member deal card (under the Invest/Pass
+                        buttons, or standalone when they're hidden). Shown here read-only. */}
+                    {deal.is_uk && (
+                      <div className="mt-5">
+                        <p className="text-xs font-medium text-amber-700 mb-2">
+                          UK deal — this disclaimer auto-displays on the member deal card.
+                        </p>
+                        <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
+                          <UkDealDisclaimer />
+                        </div>
+                      </div>
+                    )}
                   </div>
                   );
                 })()}

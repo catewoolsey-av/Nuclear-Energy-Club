@@ -6,3 +6,4 @@ export { DocumentModal } from './DocumentModal';
 export { VideoModal } from './VideoModal';
 export { LoadingSpinner } from './LoadingSpinner';
 export { Avatar } from './Avatar';
+export { UkDealDisclaimer } from './UkDealDisclaimer';

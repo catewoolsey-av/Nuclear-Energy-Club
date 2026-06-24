@@ -122,7 +122,7 @@ export default async (req) => {
       }
 
       const [dealsRes, termsRes, materialsRes] = await Promise.all([
-        sb2.from('deals').select('id, description, deadline_at').in('id', sourceDealIds),
+        sb2.from('deals').select('id, description, deadline_at, is_uk').in('id', sourceDealIds),
         sb2.from('dr_deal_terms').select('*').in('deal_id', sourceDealIds),
         sb2.from('deal_materials').select('*').in('deal_id', sourceDealIds).eq('is_archived', false).order('sort_order', { ascending: true }),
       ]);
@@ -161,12 +161,13 @@ export default async (req) => {
 
       const byId = {};
       sourceDealIds.forEach(id => {
-        byId[id] = { description: null, deadline_at: null, terms: null, materials: [] };
+        byId[id] = { description: null, deadline_at: null, is_uk: false, terms: null, materials: [] };
       });
       (dealsRes.data || []).forEach(d => {
         if (byId[d.id]) {
           byId[d.id].description = d.description || null;
           byId[d.id].deadline_at = d.deadline_at || null;
+          byId[d.id].is_uk = d.is_uk ?? false;
         }
       });
       termsWithImageUrls.forEach(t => {

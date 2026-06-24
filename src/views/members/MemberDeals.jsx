@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { TrendingUp, FileText, AlertCircle, Eye, Link2, Check } from 'lucide-react';
 import { supabase, callDealRoomMember } from '../../supabase';
 import { formatDate } from '../../utils/formatters';
 import { formatDealDescription } from '../../utils/formatDealDescription';
-import { Button, Card, Badge, Modal, DocumentModal, VideoModal } from '../../components/ui';
+import { Button, Card, Badge, Modal, DocumentModal, VideoModal, UkDealDisclaimer } from '../../components/ui';
 
 const MemberDeals = ({ deals, currentUser }) => {
   const [activeTab, setActiveTab] = useState('active');
@@ -380,6 +380,50 @@ const MemberDeals = ({ deals, currentUser }) => {
 
   const displayDeals = activeTab === 'active' ? activeDeals : archivedDeals;
 
+  // --- Investment Opportunity overflow handling ---------------------------------
+  // When the IO description is taller than the Documents column beside it, the
+  // left column dangles below the Documents box. We clamp the IO text so its
+  // bottom lines up with the Documents box and reveal the rest behind a
+  // "See more" toggle. Heights are measured per deal; when the layout is
+  // stacked (mobile) the Documents box sits below the text, so nothing clamps.
+  const descRefs = useRef({});      // dealId -> IO content element
+  const docsColRefs = useRef({});   // dealId -> Documents box element
+  const [descMeta, setDescMeta] = useState({});        // dealId -> { collapsedH, fullH } when overflowing
+  const [descExpanded, setDescExpanded] = useState({}); // dealId -> bool
+
+  const measureKey = displayDeals.map(d => d.id).join(',') + '|' + Object.keys(dealRoomInfo).join(',');
+  useLayoutEffect(() => {
+    const compute = () => {
+      const next = {};
+      displayDeals.forEach((d) => {
+        const descEl = descRefs.current[d.id];
+        const docsEl = docsColRefs.current[d.id];
+        if (!descEl || !docsEl) return;
+        const available = docsEl.getBoundingClientRect().bottom - descEl.getBoundingClientRect().top;
+        const fullH = descEl.scrollHeight;
+        if (available > 80 && fullH > available + 24) {
+          next[d.id] = { collapsedH: Math.round(available), fullH };
+        }
+      });
+      setDescMeta((prev) => {
+        const k = Object.keys(next), pk = Object.keys(prev);
+        if (k.length === pk.length && k.every((id) => prev[id] && prev[id].collapsedH === next[id].collapsedH && prev[id].fullH === next[id].fullH)) {
+          return prev;
+        }
+        return next;
+      });
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    displayDeals.forEach((d) => {
+      if (descRefs.current[d.id]) ro.observe(descRefs.current[d.id]);
+      if (docsColRefs.current[d.id]) ro.observe(docsColRefs.current[d.id]);
+    });
+    window.addEventListener('resize', compute);
+    return () => { ro.disconnect(); window.removeEventListener('resize', compute); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [measureKey, activeTab]);
+
   return (
     <>
     {!disclosureAccepted && (
@@ -453,9 +497,14 @@ const MemberDeals = ({ deals, currentUser }) => {
                 description: investmentDescription || info.description || rawDeal.description,
                 deadline_at: info.deadline_at || null,
                 deal_materials: info.materials || [],
+                is_uk: info.is_uk ?? false,
               }
             : rawDeal;
           const userInterest = dealInterests[deal.id];
+          // The Invest/Pass decision UI only renders for active, non-past deals
+          // once the club has flipped the Activate switch. The UK disclaimer must
+          // appear UNDER it when present, and on its own otherwise.
+          const interestActive = deal.status === 'active' && !isPastDeal(deal) && deal.interest_active;
           const materialType = (m) => m.doc_type || m.material_type;
           const dealMaterials = deal.deal_materials || [];
 
@@ -645,22 +694,47 @@ const MemberDeals = ({ deals, currentUser }) => {
                   )}
 
                   {/* Investment Opportunity */}
-                  {deal.description && (
-                    <div className="flex-1 flex flex-col">
-                      <div className="border-l-[3px] border-blue-600 pl-4 mt-5">
-                        <h3 className="text-base font-bold text-gray-900 mb-3 tracking-tight">Investment Opportunity</h3>
-                        <div
-                          className="text-sm text-gray-700 leading-relaxed"
-                          dangerouslySetInnerHTML={{ __html: formatDealDescription(deal.description) }}
-                        />
+                  {deal.description && (() => {
+                    const meta = descMeta[deal.id];
+                    const expanded = !!descExpanded[deal.id];
+                    const collapsed = !!meta && !expanded;
+                    const maxHeight = !meta ? undefined : `${expanded ? meta.fullH : meta.collapsedH}px`;
+                    return (
+                      <div className="flex-1 flex flex-col">
+                        <div className="border-l-[3px] border-blue-600 pl-4 mt-5">
+                          <h3 className="text-base font-bold text-gray-900 mb-3 tracking-tight">Investment Opportunity</h3>
+                          <div className="relative">
+                            <div
+                              ref={(el) => { descRefs.current[deal.id] = el; }}
+                              className="text-sm text-gray-700 leading-relaxed overflow-hidden transition-[max-height] duration-300 ease-in-out"
+                              style={{ maxHeight }}
+                              dangerouslySetInnerHTML={{ __html: formatDealDescription(deal.description) }}
+                            />
+                            {collapsed && (
+                              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white to-transparent" />
+                            )}
+                          </div>
+                          {meta && (
+                            <button
+                              type="button"
+                              onClick={() => setDescExpanded((prev) => ({ ...prev, [deal.id]: !prev[deal.id] }))}
+                              className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700"
+                            >
+                              {expanded ? 'See less' : 'See more'}
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${expanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9" /></svg>
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 {/* Documents column */}
                 <div>
-                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                  {/* ref is on the inner box (its natural content height), not the
+                      grid item, which stretches to the full row height. */}
+                  <div ref={(el) => { docsColRefs.current[deal.id] = el; }} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
                     <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-50 flex items-center gap-2.5">
                       <FileText size={14} className="text-gray-700" />
                       <span className="text-sm font-semibold text-gray-800">Documents</span>
@@ -737,8 +811,8 @@ const MemberDeals = ({ deals, currentUser }) => {
                   - admin has flipped the Activate switch (deal.interest_active)
                   The Activate flag defaults to false so members don't see
                   Invest/Pass until the club is ready to collect responses. */}
-              {deal.status === 'active' && !isPastDeal(deal) && deal.interest_active && (
-                <div className="border-t border-gray-200 -mx-6 -mb-6 mt-6 px-8 py-5 bg-gray-50">
+              {interestActive && (
+                <div className={`border-t border-gray-200 -mx-6 mt-6 px-8 py-5 bg-gray-50 ${deal.is_uk ? '' : '-mb-6'}`}>
                   <p className="text-base font-bold text-gray-900 mb-3.5 tracking-tight">Interested in this deal?</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <button
@@ -771,6 +845,15 @@ const MemberDeals = ({ deals, currentUser }) => {
                       <strong>NOTE:</strong> Submitting captures your <em>interest</em>. AV Operations will follow up within a few business days to complete subscription documents, accreditation verification, and wiring instructions through the standard av.vc investor portal. Your investment is not finalized until those steps are complete and counter-signed.
                     </p>
                   </div>
+                </div>
+              )}
+
+              {/* UK regulatory disclaimer — shows for every UK deal (deal.is_uk),
+                  positioned directly under the Invest/Pass decision UI when it is
+                  present, and as a standalone card footer when it is not. */}
+              {deal.is_uk && (
+                <div className={`border-t border-gray-200 -mx-6 -mb-6 px-8 py-4 bg-gray-50 ${interestActive ? '' : 'mt-6'}`}>
+                  <UkDealDisclaimer />
                 </div>
               )}
             </Card>
